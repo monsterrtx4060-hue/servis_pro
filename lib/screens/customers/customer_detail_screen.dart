@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/database/database_helper.dart';
 import '../services/today_service_detail_screen.dart';
 import 'add_service_screen.dart';
+import '../../widgets/service_status_icon.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final int customerId;
@@ -310,6 +311,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                                 "Ücret: ${(service['price'] ?? 0).toString()} ₺",
                               ),
                             ],
+                          ),
+                          trailing: ServiceStatusIcon(
+                            status: service['service_status']?.toString(),
                           ),
                           onTap: () async {
                             final detailMap = {

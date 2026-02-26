@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/database/database_helper.dart';
 import 'today_service_detail_screen.dart';
+import '../../widgets/service_status_icon.dart';
 
 class TodayServicesScreen extends StatefulWidget {
   const TodayServicesScreen({super.key});
@@ -53,15 +54,11 @@ class _TodayServicesScreenState extends State<TodayServicesScreen> {
               itemBuilder: (context, index) {
                 final service = services[index];
 
-                final doneText = (service['done_description'] ?? '')
+                final status = (service['service_status'] ?? 'Parça Bekliyor')
                     .toString()
                     .trim();
-                final priceRaw = service['price'];
-                final double price = priceRaw is num
-                    ? priceRaw.toDouble()
-                    : double.tryParse(priceRaw.toString()) ?? 0;
 
-                final isCompleted = doneText.isNotEmpty && price > 0;
+                final isCompleted = status == 'Tamamlandı';
 
                 return Card(
                   color: isCompleted ? Colors.grey.shade200 : null,
@@ -76,14 +73,12 @@ class _TodayServicesScreenState extends State<TodayServicesScreen> {
                       children: [
                         Text("Ürün: ${(service['product'] ?? '').toString()}"),
                         Text("Arıza: ${(service['problem'] ?? '').toString()}"),
-                        Text(
-                          "Durum: ${(service['service_status'] ?? 'Açık').toString()}",
-                        ),
+                        Text("Durum: $status"),
                       ],
                     ),
-                    trailing: isCompleted
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : null,
+                    trailing: ServiceStatusIcon(
+                      status: service['service_status']?.toString(),
+                    ),
                     onTap: () async {
                       await Navigator.push(
                         context,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/database/database_helper.dart';
 import 'today_service_detail_screen.dart';
+import '../../widgets/service_status_icon.dart';
 
 class PartWaitingScreen extends StatefulWidget {
   const PartWaitingScreen({super.key});
@@ -56,6 +57,9 @@ class _PartWaitingScreenState extends State<PartWaitingScreen> {
                           "Servis Tarihi: ${DatabaseHelper.instance.toUiDate(s['planned_date']?.toString())}",
                         ),
                       ],
+                    ),
+                    trailing: ServiceStatusIcon(
+                      status: s['service_status']?.toString(),
                     ),
                     onTap: () async {
                       await Navigator.push(

@@ -1,8 +1,9 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -10,72 +11,9 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
-  Future<void> closeDatabase() async {
-    if (_database != null) {
-      await _database!.close();
-      _database = null;
-    }
-  }
-
-  Future<String?> exportDatabase() async {
-    try {
-      final dbPath = await getDatabasesPath();
-      final originalPath = join(dbPath, 'servis.db');
-      final originalFile = File(originalPath);
-
-      if (!await originalFile.exists()) return null;
-
-      final dir = await getApplicationDocumentsDirectory();
-      final now = DateTime.now();
-      final backupName =
-          'servis_backup_${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.db';
-
-      final backupPath = join(dir.path, backupName);
-      await originalFile.copy(backupPath);
-
-      return backupPath;
-    } catch (e) {
-      // debugPrint('EXPORT ERROR: $e');
-      return null;
-    }
-  }
-
-  Future<bool> importDatabase() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        dialogTitle: 'Geri yüklenecek yedeği seç',
-        type: FileType.any,
-        allowMultiple: false,
-        withData: false,
-      );
-
-      if (result == null || result.files.single.path == null) return false;
-
-      final pickedPath = result.files.single.path!;
-      if (!pickedPath.toLowerCase().endsWith('.db')) return false;
-
-      final backupFile = File(pickedPath);
-      if (!await backupFile.exists()) return false;
-
-      await closeDatabase();
-
-      final dbPath = await getDatabasesPath();
-      final originalPath = join(dbPath, 'servis.db');
-      final originalFile = File(originalPath);
-
-      if (await originalFile.exists()) {
-        // güvenlik yedeği
-        await originalFile.copy(originalPath + '.before_restore');
-        await originalFile.delete();
-      }
-
-      await backupFile.copy(originalPath);
-      return true;
-    } catch (e) {
-      // debugPrint('IMPORT ERROR: $e');
-      return false;
-    }
-  }
+  // =========================
+  // DB INIT / CLOSE
+  // =========================
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -93,6 +31,13 @@ class DatabaseHelper {
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
+  }
+
+  Future<void> closeDatabase() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -140,36 +85,106 @@ class DatabaseHelper {
     }
 
     if (oldVersion < 5) {
+      // Eski sürümden gelen status kolonu (eski default 'Açık' olabilir)
       await db.execute(
         "ALTER TABLE services ADD COLUMN service_status TEXT DEFAULT 'Açık'",
       );
     }
-    if (oldVersion < 6) {
-      // Mevcut tabloların zaten var, bir şey eklemiyoruz (senin projende 6 kullanılıyor)
-    }
 
+    // v7: completed_date + status normalize
     if (oldVersion < 7) {
-      // completed_date kolonu
-      await db.execute("ALTER TABLE services ADD COLUMN completed_date TEXT");
+      // completed_date kolonu yoksa ekle
+      try {
+        await db.execute("ALTER TABLE services ADD COLUMN completed_date TEXT");
+      } catch (_) {
+        // zaten varsa geç
+      }
 
-      // Eski durumları tek tipe indir: tamamlanmamış olanları "Parça Bekliyor" yap
+      // Status'leri sadece 3 tipe indir
       await db.execute("""
         UPDATE services
         SET service_status = 'Parça Bekliyor'
         WHERE service_status IS NULL
            OR TRIM(service_status) = ''
-           OR service_status NOT IN ('Parça Bekliyor','Tamamlandı','İptal')
+           OR TRIM(service_status) NOT IN ('Parça Bekliyor','Tamamlandı','İptal')
       """);
 
-      // Tamamlandı olanların completed_date boşsa en azından planned_date'e çekelim (tahmini)
+      // Tamamlandı olup completed_date boş olanlara planned_date yaz (tahmini)
       await db.execute("""
         UPDATE services
         SET completed_date = planned_date
-        WHERE service_status = 'Tamamlandı'
+        WHERE TRIM(service_status) = 'Tamamlandı'
           AND (completed_date IS NULL OR TRIM(completed_date) = '')
       """);
     }
   }
+
+  // =========================
+  // BACKUP / RESTORE
+  // =========================
+
+  Future<String?> exportDatabase() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      final originalPath = join(dbPath, 'servis.db');
+      final originalFile = File(originalPath);
+
+      if (!await originalFile.exists()) return null;
+
+      final dir = await getApplicationDocumentsDirectory();
+      final now = DateTime.now();
+
+      // Saniye + milisaniye ekli -> üstüne yazma olmaz
+      final backupName =
+          'servis_backup_${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_'
+          '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_'
+          '${now.millisecond.toString().padLeft(3, '0')}.db';
+
+      final backupPath = join(dir.path, backupName);
+      await originalFile.copy(backupPath);
+
+      return backupPath;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> importDatabase() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Geri yüklenecek yedeği seç',
+        type: FileType.any,
+        allowMultiple: false,
+        withData: false,
+      );
+
+      if (result == null || result.files.single.path == null) return false;
+
+      final pickedPath = result.files.single.path!;
+      if (!pickedPath.toLowerCase().endsWith('.db')) return false;
+
+      final backupFile = File(pickedPath);
+      if (!await backupFile.exists()) return false;
+
+      await closeDatabase();
+
+      final dbPath = await getDatabasesPath();
+      final originalPath = join(dbPath, 'servis.db');
+      final originalFile = File(originalPath);
+
+      if (await originalFile.exists()) {
+        // güvenlik yedeği
+        await originalFile.copy('$originalPath.before_restore');
+        await originalFile.delete();
+      }
+
+      await backupFile.copy(originalPath);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // =========================
   // TARİH YARDIMCILARI
   // =========================
@@ -338,6 +353,7 @@ class DatabaseHelper {
         s.planned_date,
         s.date,
         s.service_status,
+        s.completed_date,
         c.name,
         c.phone,
         c.address,
@@ -371,6 +387,7 @@ class DatabaseHelper {
     );
   }
 
+  /// Detay ekranındaki "Kaydı Güncelle" butonu bunu çağırıyor (durum + ücret + yapılan işlem)
   Future<int> updateServiceComplete(
     int serviceId,
     String doneDescription,
@@ -390,7 +407,6 @@ class DatabaseHelper {
       if (serviceStatus == 'Tamamlandı') {
         values['completed_date'] = todayDbDate();
       } else {
-        // Tamamlandı'dan çıktıysa tamamlanma tarihini temizle
         values['completed_date'] = null;
       }
     }
@@ -402,6 +418,26 @@ class DatabaseHelper {
       whereArgs: [serviceId],
     );
   }
+
+  Future<int> updateServiceStatus(int serviceId, String status) async {
+    final db = await database;
+
+    final values = <String, dynamic>{
+      'service_status': status,
+      'completed_date': status == 'Tamamlandı' ? todayDbDate() : null,
+    };
+
+    return await db.update(
+      'services',
+      values,
+      where: 'id = ?',
+      whereArgs: [serviceId],
+    );
+  }
+
+  // =========================
+  // PARÇA BEKLEYENLER
+  // =========================
 
   Future<List<Map<String, dynamic>>>
   getWaitingPartsServicesWithCustomer() async {
@@ -431,6 +467,10 @@ class DatabaseHelper {
       ''');
   }
 
+  // =========================
+  // RAPORLAMA
+  // =========================
+
   Future<List<Map<String, dynamic>>> getCompletedServicesByCompletedDate(
     String dbDate,
   ) async {
@@ -438,33 +478,27 @@ class DatabaseHelper {
     return await db.rawQuery(
       '''
       SELECT
-        s.*,
-        c.name, c.phone, c.address
+        s.id,
+        s.customerId,
+        s.product,
+        s.problem,
+        s.price,
+        s.done_description,
+        s.planned_date,
+        s.date,
+        s.service_status,
+        s.completed_date,
+        c.name,
+        c.phone,
+        c.address
       FROM services s
       LEFT JOIN customers c ON s.customerId = c.id
-      WHERE s.service_status = 'Tamamlandı'
-        AND s.completed_date = ?
+      WHERE TRIM(COALESCE(s.service_status,'')) = 'Tamamlandı'
+        AND TRIM(COALESCE(s.completed_date,'')) = ?
       ORDER BY s.id DESC
       ''',
       [dbDate],
     );
-  }
-
-  Future<double> getRevenueByCompletedDate(String dbDate) async {
-    final db = await database;
-    final res = await db.rawQuery(
-      '''
-      SELECT COALESCE(SUM(price), 0) AS total
-      FROM services
-      WHERE service_status = 'Tamamlandı'
-        AND completed_date = ?
-      ''',
-      [dbDate],
-    );
-    final total = res.first['total'];
-    return (total is num)
-        ? total.toDouble()
-        : double.tryParse(total.toString()) ?? 0.0;
   }
 
   Future<Map<String, dynamic>> getSummaryByCompletedDateRange(
@@ -478,30 +512,68 @@ class DatabaseHelper {
         COUNT(*) AS count,
         COALESCE(SUM(price), 0) AS total
       FROM services
-      WHERE service_status = 'Tamamlandı'
-        AND completed_date >= ?
-        AND completed_date <= ?
+      WHERE TRIM(COALESCE(service_status,'')) = 'Tamamlandı'
+        AND TRIM(COALESCE(completed_date,'')) >= ?
+        AND TRIM(COALESCE(completed_date,'')) <= ?
       ''',
       [startDb, endDb],
     );
     return res.first;
   }
 
-  Future<int> updateServiceStatus(int serviceId, String status) async {
+  // İstersen raporda direkt kullanırsın (opsiyonel)
+  Future<double> getRevenueByCompletedDate(String dbDate) async {
     final db = await database;
-
-    final values = <String, dynamic>{
-      'service_status': status,
-      'completed_date': status == 'Tamamlandı' ? todayDbDate() : null,
-    };
-
-    return await db.update(
-      'services',
-      values,
-      where: 'id = ?',
-      whereArgs: [serviceId],
+    final res = await db.rawQuery(
+      '''
+      SELECT COALESCE(SUM(price), 0) AS total
+      FROM services
+      WHERE TRIM(COALESCE(service_status,'')) = 'Tamamlandı'
+        AND TRIM(COALESCE(completed_date,'')) = ?
+      ''',
+      [dbDate],
     );
+
+    final total = res.first['total'];
+    return (total is num)
+        ? total.toDouble()
+        : double.tryParse(total.toString()) ?? 0.0;
   }
+
+  Future<int> getWaitingPartsCount() async {
+    final db = await database;
+    final res = await db.rawQuery('''
+      SELECT COUNT(*) AS count
+      FROM services
+      WHERE TRIM(COALESCE(service_status,'')) = 'Parça Bekliyor'
+        AND (completed_date IS NULL OR TRIM(completed_date) = '')
+      ''');
+    final v = res.first['count'];
+    return v is int ? v : int.tryParse(v.toString()) ?? 0;
+  }
+
+  Future<int> getCanceledCountByPlannedDateRange(
+    String startDb,
+    String endDb,
+  ) async {
+    final db = await database;
+    final res = await db.rawQuery(
+      '''
+      SELECT COUNT(*) AS count
+      FROM services
+      WHERE TRIM(COALESCE(service_status,'')) = 'İptal'
+        AND TRIM(COALESCE(planned_date,'')) >= ?
+        AND TRIM(COALESCE(planned_date,'')) <= ?
+      ''',
+      [startDb, endDb],
+    );
+    final v = res.first['count'];
+    return v is int ? v : int.tryParse(v.toString()) ?? 0;
+  }
+
+  // =========================
+  // FIX (İSTEĞE BAĞLI)
+  // =========================
 
   Future<void> fixCompletedDateForCompletedServices() async {
     final db = await database;
@@ -511,11 +583,6 @@ class DatabaseHelper {
       WHERE TRIM(COALESCE(service_status,'')) = 'Tamamlandı'
         AND (completed_date IS NULL OR TRIM(completed_date) = '')
     """);
-  }
-
-  Future<void> _checkReminders() async {
-    await DatabaseHelper.instance.processTodayReminders();
-    await DatabaseHelper.instance.fixCompletedDateForCompletedServices();
   }
 
   // =========================
@@ -553,7 +620,8 @@ class DatabaseHelper {
           'done_description': '',
           'planned_date': today,
           'date': today,
-          'service_status': 'Açık',
+          'service_status': 'Parça Bekliyor',
+          'completed_date': null,
         });
       }
 

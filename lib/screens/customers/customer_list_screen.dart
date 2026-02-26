@@ -6,6 +6,7 @@ import 'add_customer_screen.dart';
 import 'edit_customer_screen.dart';
 import '../settings/backup_screen.dart';
 import '../services/part_waiting_screen.dart';
+import '../reports/report_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key});
@@ -224,6 +225,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   await _searchCustomer();
                 },
                 child: const Text("Parça Bekleyenler"),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReportScreen()),
+                  );
+                },
+                child: const Text("Raporlama"),
               ),
             ),
             const SizedBox(height: 16),
