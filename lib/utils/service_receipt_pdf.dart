@@ -1,16 +1,26 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 class ServiceReceiptPdf {
-  // Firma bilgileri (burayı kendi işletme bilgilerine göre düzenleyebilirsin)
   static const String companyName = 'Bilgin Teknik Servis';
   static const String companyPhone = '0534 931 42 88';
   static const String companyAddress = 'BURSA / Orhangazi';
 
   static Future<Uint8List> _buildPdf(Map<String, dynamic> service) async {
-    final pdf = pw.Document();
+    final fontRegular = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/DejaVuSans.ttf'),
+    );
+
+    final fontBold = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'),
+    );
+
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
+    );
 
     String val(dynamic v) => (v ?? '').toString();
 
@@ -18,7 +28,6 @@ class ServiceReceiptPdf {
     final phone = val(service['phone']);
     final address = val(service['address']);
     final reminderNote = val(service['reminder_note']);
-
     final product = val(service['product']);
     final problem = val(service['problem']);
     final plannedDate = val(
@@ -29,8 +38,8 @@ class ServiceReceiptPdf {
     );
     final doneDescription = val(service['done_description']);
     final price = val(service['price']);
-
     final serviceId = val(service['id']);
+
     final receiptNo =
         'SF-${DateTime.now().year}-$serviceId-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
 
@@ -42,7 +51,6 @@ class ServiceReceiptPdf {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Üst başlık
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(12),
@@ -81,10 +89,8 @@ class ServiceReceiptPdf {
                   ],
                 ),
               ),
-
               pw.SizedBox(height: 14),
 
-              // Müşteri bilgileri
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(10),
@@ -107,10 +113,8 @@ class ServiceReceiptPdf {
                   ],
                 ),
               ),
-
               pw.SizedBox(height: 12),
 
-              // Servis bilgileri
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(10),
@@ -132,10 +136,8 @@ class ServiceReceiptPdf {
                   ],
                 ),
               ),
-
               pw.SizedBox(height: 12),
 
-              // Yapılan işlem
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(10),
@@ -158,10 +160,8 @@ class ServiceReceiptPdf {
                   ],
                 ),
               ),
-
               pw.SizedBox(height: 12),
 
-              // Ücret
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(12),
@@ -192,7 +192,6 @@ class ServiceReceiptPdf {
 
               pw.Spacer(),
 
-              // İmzalar
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
@@ -211,15 +210,12 @@ class ServiceReceiptPdf {
 
   static Future<void> printServiceReceipt(Map<String, dynamic> service) async {
     final bytes = await _buildPdf(service);
-
     await Printing.layoutPdf(onLayout: (format) async => bytes);
   }
 
   static Future<void> shareServiceReceipt(Map<String, dynamic> service) async {
     final bytes = await _buildPdf(service);
-
     final fileName = 'servis_fisi_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
     await Printing.sharePdf(bytes: bytes, filename: fileName);
   }
 }

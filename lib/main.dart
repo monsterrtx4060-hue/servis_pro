@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:servis_pro/screens/splash/splash_screen.dart';
 import 'core/database/database_helper.dart';
 import 'screens/customers/customer_list_screen.dart';
+import 'screens/splash/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +17,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: CustomerListScreen(),
+      home: SplashScreen(),
     );
   }
 }
