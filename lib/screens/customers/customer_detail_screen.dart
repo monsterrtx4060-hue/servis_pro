@@ -3,6 +3,7 @@ import '../../core/database/database_helper.dart';
 import '../services/today_service_detail_screen.dart';
 import 'add_service_screen.dart';
 import '../../widgets/service_status_icon.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final int customerId;
@@ -34,6 +35,16 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   Future<void> _loadAll() async {
     await _loadCustomer();
     await _loadServices();
+  }
+
+  Future<void> callCustomer(String phone) async {
+    final Uri url = Uri.parse("tel:$phone");
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      debugPrint("Arama başlatılamadı");
+    }
   }
 
   Future<void> _loadCustomer() async {
@@ -198,7 +209,28 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text("Ad Soyad: ${(c['name'] ?? '').toString()}"),
-                        Text("Telefon: ${(c['phone'] ?? '').toString()}"),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                "Telefon: ${(c['phone'] ?? '').toString()}",
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.phone,
+                                color: Colors.green,
+                                size: 28,
+                              ),
+                              onPressed: (c['phone'] ?? '').toString().isEmpty
+                                  ? null
+                                  : () => callCustomer(
+                                      (c['phone'] ?? '').toString(),
+                                    ),
+                            ),
+                          ],
+                        ),
+
                         Text("Adres: ${(c['address'] ?? '').toString()}"),
                       ],
                     ),
