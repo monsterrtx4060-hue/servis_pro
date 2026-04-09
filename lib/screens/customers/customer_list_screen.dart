@@ -7,9 +7,12 @@ import 'edit_customer_screen.dart';
 import '../settings/backup_screen.dart';
 import '../services/part_waiting_screen.dart';
 import '../reports/report_screen.dart';
+import '../calls/recent_calls_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
-  const CustomerListScreen({super.key});
+  final Map<String, dynamic>? autoOpenCustomer;
+
+  const CustomerListScreen({super.key, this.autoOpenCustomer});
 
   @override
   State<CustomerListScreen> createState() => _CustomerListScreenState();
@@ -23,10 +26,54 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   void initState() {
     super.initState();
     _checkReminders();
+    _handleAutoOpen();
   }
 
   Future<void> _checkReminders() async {
     await DatabaseHelper.instance.processTodayReminders();
+  }
+
+  // 🔥 OTOMATİK AÇMA SİSTEMİ
+  Future<void> _handleAutoOpen() async {
+    final data = widget.autoOpenCustomer;
+
+    if (data == null) return;
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (!mounted) return;
+
+    // ✅ kayıtlı müşteri
+    if (data.containsKey('id')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CustomerDetailScreen(
+            customerId: data['id'],
+            customerName: data['name'],
+          ),
+        ),
+      );
+    }
+    // ✅ yeni numara
+    else if (data.containsKey('new_number')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Yeni numara: ${data['new_number']}"),
+          action: SnackBarAction(
+            label: "KAYDET",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddCustomerScreen(phone: data['new_number']),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _searchCustomer() async {
@@ -203,6 +250,24 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
             SizedBox(
               width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RecentCallsScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.call),
+                label: const Text("Son Aramalar"),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton(
                 onPressed: _openTodayServices,
                 child: const Text("Günün Servisleri"),
@@ -227,6 +292,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 child: const Text("Parça Bekleyenler"),
               ),
             ),
+
             const SizedBox(height: 16),
 
             SizedBox(
@@ -241,6 +307,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 child: const Text("Raporlama"),
               ),
             ),
+
             const SizedBox(height: 16),
 
             Expanded(

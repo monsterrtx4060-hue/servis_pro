@@ -3,7 +3,9 @@ import '../../core/database/database_helper.dart';
 import '../../models/customer.dart';
 
 class AddCustomerScreen extends StatefulWidget {
-  const AddCustomerScreen({super.key});
+  final String? phone;
+
+  const AddCustomerScreen({super.key, this.phone});
 
   @override
   State<AddCustomerScreen> createState() => _AddCustomerScreenState();
@@ -40,6 +42,15 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
     _phoneController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.phone != null) {
+      _phoneController.text = widget.phone!;
+    }
   }
 
   @override

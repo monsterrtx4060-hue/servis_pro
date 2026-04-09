@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/database/database_helper.dart';
 import '../../utils/service_receipt_pdf.dart';
 
@@ -38,7 +39,16 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
 
     final current = (widget.service['service_status'] ?? 'Parça Bekliyor')
         .toString();
+
     _selectedStatus = _statuses.contains(current) ? current : 'Parça Bekliyor';
+  }
+
+  Future<void> _callCustomer(String phone) async {
+    final uri = Uri.parse("tel:$phone");
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 
   String _uiDate(String? dbDate) => DatabaseHelper.instance.toUiDate(dbDate);
@@ -55,9 +65,11 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
       serviceStatus: _selectedStatus,
     );
 
-    widget.service['done_description'] = doneText;
-    widget.service['price'] = price;
-    widget.service['service_status'] = _selectedStatus;
+    setState(() {
+      widget.service['done_description'] = doneText;
+      widget.service['price'] = price;
+      widget.service['service_status'] = _selectedStatus;
+    });
 
     if (!mounted) return;
 
@@ -85,6 +97,7 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
     await ServiceReceiptPdf.shareServiceReceipt(_currentServiceMap());
 
     if (!mounted) return;
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("PDF paylaşım ekranı açıldı")));
@@ -99,6 +112,8 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final phone = (widget.service['phone'] ?? '').toString();
+
     final plannedDate = _uiDate(widget.service['planned_date']?.toString());
     final createdDate = _uiDate(widget.service['date']?.toString());
 
@@ -113,9 +128,21 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
+
             Text("Ad Soyad: ${widget.service['name'] ?? ''}"),
-            Text("Telefon: ${widget.service['phone'] ?? ''}"),
+
+            Row(
+              children: [
+                Expanded(child: Text("Telefon: $phone")),
+                IconButton(
+                  icon: const Icon(Icons.phone, color: Colors.green, size: 28),
+                  onPressed: phone.isEmpty ? null : () => _callCustomer(phone),
+                ),
+              ],
+            ),
+
             Text("Adres: ${widget.service['address'] ?? ''}"),
+
             if ((widget.service['reminder_note'] ?? '').toString().isNotEmpty)
               Text("Hatırlatma Notu: ${widget.service['reminder_note']}"),
 
@@ -126,6 +153,7 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
+
             Text("Ürün: ${widget.service['product'] ?? ''}"),
             Text("Arıza: ${widget.service['problem'] ?? ''}"),
             Text("Planlanan Servis Tarihi: $plannedDate"),
@@ -140,15 +168,11 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
                 border: OutlineInputBorder(),
               ),
               items: _statuses
-                  .map(
-                    (s) => DropdownMenuItem<String>(value: s, child: Text(s)),
-                  )
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
-                setState(() {
-                  _selectedStatus = value;
-                });
+                setState(() => _selectedStatus = value);
               },
             ),
 

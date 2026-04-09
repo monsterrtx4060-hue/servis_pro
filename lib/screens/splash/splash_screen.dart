@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:call_log/call_log.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../customers/customer_list_screen.dart';
 import '../../core/database/database_helper.dart';
-import '../customers/customer_detail_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,52 +22,47 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _startApp() async {
+    final lastCustomer = await _checkLastCall();
+
     await Future.delayed(const Duration(milliseconds: 1200));
 
-    final lastNumber = await _getLastCallNumber();
-
-    if (lastNumber != null && lastNumber.isNotEmpty) {
-      final results = await DatabaseHelper.instance.searchCustomerByPhone(
-        lastNumber,
-      );
-
-      if (results.isNotEmpty) {
-        final customer = results.first;
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CustomerDetailScreen(
-              customerId: customer['id'],
-              customerName: customer['name'],
-            ),
-          ),
-        );
-        return;
-      }
-    }
-
-    // müşteri bulunamazsa normal liste açılır
     if (!mounted) return;
+
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const CustomerListScreen()),
+      MaterialPageRoute(
+        builder: (_) => CustomerListScreen(autoOpenCustomer: lastCustomer),
+      ),
     );
   }
 
-  Future<String?> _getLastCallNumber() async {
-    try {
-      Iterable<CallLogEntry> entries = await CallLog.get();
+  Future<Map<String, dynamic>?> _checkLastCall() async {
+    var status = await Permission.phone.request();
+    if (!status.isGranted) return null;
 
-      if (entries.isNotEmpty) {
-        final number = entries.first.number;
-        return number;
-      }
-    } catch (e) {
-      // izin yoksa buraya düşer
+    Iterable<CallLogEntry> entries = await CallLog.get();
+    if (entries.isEmpty) return null;
+
+    final lastCall = entries.first;
+    final number = lastCall.number;
+
+    if (number == null || number.isEmpty) return null;
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastSaved = prefs.getString("last_checked_number");
+
+    // aynı numarayı tekrar açma
+    if (lastSaved == number) return null;
+
+    await prefs.setString("last_checked_number", number);
+
+    final results = await DatabaseHelper.instance.searchCustomerByPhone(number);
+
+    if (results.isNotEmpty) {
+      return results.first;
+    } else {
+      return {"new_number": number};
     }
-    return null;
   }
 
   @override

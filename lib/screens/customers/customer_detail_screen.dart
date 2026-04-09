@@ -41,7 +41,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     final Uri url = Uri.parse("tel:$phone");
 
     if (await canLaunchUrl(url)) {
-      await launchUrl(url);
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
       debugPrint("Arama başlatılamadı");
     }
@@ -59,6 +59,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     _reminderNoteController.text = (data['reminder_note'] ?? '').toString();
 
     if (!mounted) return;
+
     setState(() {
       customer = data;
     });
@@ -70,6 +71,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
 
     if (!mounted) return;
+
     setState(() {
       services = data;
     });
@@ -100,9 +102,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
 
     if (!mounted) return;
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Hatırlatıcı kaydedildi")));
+
     await _loadCustomer();
   }
 
@@ -113,6 +117,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
   Future<void> _updateDoneDescription(int serviceId) async {
     final service = services.firstWhere((s) => s['id'] == serviceId);
+
     final controller = TextEditingController(
       text: (service['done_description'] ?? '').toString(),
     );
@@ -121,11 +126,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Yapılan İşlem Güncelle"),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: "Yapılan işlemi girin"),
-          maxLines: 3,
-        ),
+        content: TextField(controller: controller, maxLines: 3),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -188,15 +189,16 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.customerName)),
+
       body: Column(
         children: [
-          // Müşteri bilgileri
+          // ================= CUSTOMER INFO =================
           Card(
             margin: const EdgeInsets.all(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: c == null
-                  ? const SizedBox.shrink()
+                  ? const SizedBox()
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -208,36 +210,36 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text("Ad Soyad: ${(c['name'] ?? '').toString()}"),
+
+                        Text("Ad Soyad: ${c['name'] ?? ''}"),
+
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                "Telefon: ${(c['phone'] ?? '').toString()}",
-                              ),
+                              child: Text("Telefon: ${c['phone'] ?? ''}"),
                             ),
                             IconButton(
                               icon: const Icon(
                                 Icons.phone,
                                 color: Colors.green,
-                                size: 28,
                               ),
-                              onPressed: (c['phone'] ?? '').toString().isEmpty
-                                  ? null
-                                  : () => callCustomer(
-                                      (c['phone'] ?? '').toString(),
-                                    ),
+                              onPressed: () {
+                                final phone = (c['phone'] ?? '').toString();
+                                if (phone.isNotEmpty) {
+                                  callCustomer(phone);
+                                }
+                              },
                             ),
                           ],
                         ),
 
-                        Text("Adres: ${(c['address'] ?? '').toString()}"),
+                        Text("Adres: ${c['address'] ?? ''}"),
                       ],
                     ),
             ),
           ),
 
-          // Hatırlatıcı
+          // ================= REMINDER =================
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 12),
             child: Padding(
@@ -249,31 +251,38 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     "Bakım Hatırlatıcı",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
+
                   const SizedBox(height: 8),
+
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(
                       reminderDate == null
                           ? "Tarih Seçilmedi"
-                          : "Tarih: ${DatabaseHelper.instance.toUiDate(DatabaseHelper.instance.toDbDate(reminderDate!))}",
+                          : DatabaseHelper.instance.toUiDate(
+                              DatabaseHelper.instance.toDbDate(reminderDate!),
+                            ),
                     ),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: _selectReminderDate,
                   ),
+
                   TextField(
                     controller: _reminderNoteController,
+                    maxLines: 2,
                     decoration: const InputDecoration(
                       labelText: "Hatırlatma Notu",
                       border: OutlineInputBorder(),
                     ),
-                    maxLines: 2,
                   ),
+
                   const SizedBox(height: 10),
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _saveReminder,
-                      child: const Text("Hatırlatıcıyı Kaydet"),
+                      child: const Text("Kaydet"),
                     ),
                   ),
                 ],
@@ -281,7 +290,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             ),
           ),
 
-          // Yeni arıza kayıt butonu
+          // ================= NEW SERVICE =================
           Padding(
             padding: const EdgeInsets.all(12),
             child: SizedBox(
@@ -291,7 +300,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   final added = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
+                      builder: (_) =>
                           AddServiceScreen(customerId: widget.customerId),
                     ),
                   );
@@ -308,7 +317,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
           const Divider(height: 1),
 
-          // Eski servis kayıtları
+          // ================= SERVICES =================
           Expanded(
             child: services.isEmpty
                 ? const Center(child: Text("Henüz servis kaydı yok"))
@@ -323,61 +332,42 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           vertical: 6,
                         ),
                         child: ListTile(
-                          title: Text((service['product'] ?? '').toString()),
+                          title: Text(service['product'] ?? ''),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                "Arıza: ${(service['problem'] ?? '').toString()}",
-                              ),
+                              Text("Arıza: ${service['problem'] ?? ''}"),
                               Text(
                                 "Servis Tarihi: ${DatabaseHelper.instance.toUiDate(service['planned_date']?.toString())}",
                               ),
+                              Text("Durum: ${service['service_status'] ?? ''}"),
                               Text(
-                                "Durum: ${(service['service_status'] ?? 'Açık').toString()}",
+                                "İşlem: ${(service['done_description'] ?? '').toString().isEmpty ? 'Yok' : service['done_description']}",
                               ),
-                              Text(
-                                "Yapılan İşlem: ${((service['done_description'] ?? '').toString().trim().isEmpty) ? 'Henüz yapılmadı' : service['done_description']}",
-                              ),
-                              Text(
-                                "Ücret: ${(service['price'] ?? 0).toString()} ₺",
-                              ),
+                              Text("Ücret: ${service['price'] ?? 0} ₺"),
                             ],
                           ),
                           trailing: ServiceStatusIcon(
-                            status: service['service_status']?.toString(),
+                            status: service['service_status'],
                           ),
+                          onLongPress: () => _showServiceOptions(service['id']),
                           onTap: () async {
-                            final detailMap = {
-                              'id': service['id'],
-                              'customerId': service['customerId'],
-                              'product': service['product'],
-                              'problem': service['problem'],
-                              'price': service['price'],
-                              'done_description': service['done_description'],
-                              'planned_date': service['planned_date'],
-                              'date': service['date'],
-                              'service_status': service['service_status'],
-                              'name': (customer?['name'] ?? ''),
-                              'phone': (customer?['phone'] ?? ''),
-                              'address': (customer?['address'] ?? ''),
-                              'reminder_note':
-                                  (customer?['reminder_note'] ?? ''),
-                            };
-
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => TodayServiceDetailScreen(
-                                  service: detailMap,
+                                  service: {
+                                    ...service,
+                                    'name': c?['name'],
+                                    'phone': c?['phone'],
+                                    'address': c?['address'],
+                                  },
                                 ),
                               ),
                             );
 
                             await _loadAll();
                           },
-                          onLongPress: () =>
-                              _showServiceOptions(service['id'] as int),
                         ),
                       );
                     },
