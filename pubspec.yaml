@@ -38,6 +38,7 @@ flutter:
     - assets/splash.png
     - assets/fonts/DejaVuSans.ttf
     - assets/fonts/DejaVuSans-Bold.ttf
+    - assets/icons/whatsapp.png
 
 flutter_icons:
   android: true

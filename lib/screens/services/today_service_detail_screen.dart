@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/database/database_helper.dart';
 import '../../utils/service_receipt_pdf.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class TodayServiceDetailScreen extends StatefulWidget {
   final Map<String, dynamic> service;
@@ -43,15 +43,63 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
     _selectedStatus = _statuses.contains(current) ? current : 'Parça Bekliyor';
   }
 
-  Future<void> _callCustomer(String phone) async {
-    final uri = Uri.parse("tel:$phone");
+  String _uiDate(String? dbDate) => DatabaseHelper.instance.toUiDate(dbDate);
 
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+  // 📞 ARAMA
+  Future<void> callCustomer(String phone) async {
+    if (phone.isEmpty) return;
+
+    final Uri url = Uri.parse("tel:$phone");
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
     }
   }
 
-  String _uiDate(String? dbDate) => DatabaseHelper.instance.toUiDate(dbDate);
+  // 💬 WHATSAPP (SADECE WHATSAPP MESSENGER AÇAR)
+  Future<void> sendWhatsApp() async {
+    try {
+      String phone = (widget.service['phone'] ?? '').toString();
+
+      if (phone.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Telefon numarası yok")));
+        return;
+      }
+
+      String cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
+
+      if (cleaned.startsWith('0')) {
+        cleaned = '9$cleaned';
+      }
+
+      final message = Uri.encodeComponent("""
+Merhaba ${widget.service['name']},
+
+Servis bilgilendirme:
+
+📅 Tarih: ${_uiDate(widget.service['planned_date']?.toString())}
+🔧 Ürün: ${widget.service['product']}
+⚠️ Arıza: ${widget.service['problem']}
+
+Bilginize.
+""");
+
+      // 👇 SADECE WHATSAPP MESSENGER
+      final Uri whatsappUri = Uri.parse(
+        "whatsapp://send?phone=$cleaned&text=$message",
+      );
+
+      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("WhatsApp açılamadı")));
+    }
+  }
 
   Future<void> _save() async {
     final doneText = _doneController.text.trim();
@@ -64,12 +112,6 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
       price,
       serviceStatus: _selectedStatus,
     );
-
-    setState(() {
-      widget.service['done_description'] = doneText;
-      widget.service['price'] = price;
-      widget.service['service_status'] = _selectedStatus;
-    });
 
     if (!mounted) return;
 
@@ -112,8 +154,6 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final phone = (widget.service['phone'] ?? '').toString();
-
     final plannedDate = _uiDate(widget.service['planned_date']?.toString());
     final createdDate = _uiDate(widget.service['date']?.toString());
 
@@ -131,20 +171,32 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
 
             Text("Ad Soyad: ${widget.service['name'] ?? ''}"),
 
+            // 📞 + 💬 BUTONLAR
             Row(
               children: [
-                Expanded(child: Text("Telefon: $phone")),
+                Expanded(
+                  child: Text("Telefon: ${widget.service['phone'] ?? ''}"),
+                ),
+
+                // 📞 ARAMA
                 IconButton(
-                  icon: const Icon(Icons.phone, color: Colors.green, size: 28),
-                  onPressed: phone.isEmpty ? null : () => _callCustomer(phone),
+                  icon: const Icon(Icons.phone, color: Colors.green),
+                  onPressed: () => callCustomer(widget.service['phone'] ?? ''),
+                ),
+
+                // 💬 WHATSAPP (LOGO)
+                IconButton(
+                  icon: Image.asset(
+                    'assets/icons/whatsapp.png',
+                    width: 26,
+                    height: 26,
+                  ),
+                  onPressed: sendWhatsApp,
                 ),
               ],
             ),
 
             Text("Adres: ${widget.service['address'] ?? ''}"),
-
-            if ((widget.service['reminder_note'] ?? '').toString().isNotEmpty)
-              Text("Hatırlatma Notu: ${widget.service['reminder_note']}"),
 
             const Divider(height: 30),
 
@@ -172,7 +224,9 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
-                setState(() => _selectedStatus = value);
+                setState(() {
+                  _selectedStatus = value;
+                });
               },
             ),
 
@@ -200,34 +254,25 @@ class _TodayServiceDetailScreenState extends State<TodayServiceDetailScreen> {
 
             const SizedBox(height: 20),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _save,
-                child: const Text("Kaydı Güncelle"),
-              ),
+            ElevatedButton(
+              onPressed: _save,
+              child: const Text("Kaydı Güncelle"),
             ),
 
             const SizedBox(height: 10),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _printReceipt,
-                icon: const Icon(Icons.print),
-                label: const Text("PDF Önizle / Yazdır"),
-              ),
+            OutlinedButton.icon(
+              onPressed: _printReceipt,
+              icon: const Icon(Icons.print),
+              label: const Text("PDF Önizle / Yazdır"),
             ),
 
             const SizedBox(height: 10),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _shareReceipt,
-                icon: const Icon(Icons.share),
-                label: const Text("PDF Kaydet / Paylaş"),
-              ),
+            OutlinedButton.icon(
+              onPressed: _shareReceipt,
+              icon: const Icon(Icons.share),
+              label: const Text("PDF Kaydet / Paylaş"),
             ),
           ],
         ),
